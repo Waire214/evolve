@@ -4,6 +4,7 @@ import (
 	"context"
 	"evolve/services"
 	"evolve/services/account/domain"
+	domain2 "evolve/services/transaction/domain"
 	"fmt"
 	"github.com/gofrs/uuid"
 	"time"
@@ -77,7 +78,26 @@ func (a accountAppHandler) CreateCashCache(ctx context.Context, request *domain.
 		return nil, err
 	}
 
-	err = a.allRepository.AccountRepository.UpdateAccountBalances(ctx, &domain.UpdateAccountBalance{ID: accountDetails.ID, Balance: accountDetails.Balance - request.Amount})
+	var balance = accountDetails.Balance - request.Amount
+	transaction := domain2.Transactions{
+		SourceUserID:                  accountDetails.UserID,
+		SourceAccountID:               accountDetails.ID,
+		SourceAccountNumber:           accountDetails.AccountNumber,
+		TransactionType:               "cache funding",
+		SourceTransactionAmount:       request.Amount,
+		SourceBalanceAfterTransaction: balance,
+		TransactionDate:               time.Now().Format(time.DateTime),
+	}
+	var transactions []domain2.Transactions
+
+	transactions = append(transactions, transaction)
+
+	err = a.allRepository.TransactionRepository.SaveTransaction(ctx, transactions)
+	if err != nil {
+		return nil, err
+	}
+
+	err = a.allRepository.AccountRepository.UpdateAccountBalances(ctx, &domain.UpdateAccountBalance{ID: accountDetails.ID, Balance: balance})
 	if err != nil {
 		return nil, err
 	}
